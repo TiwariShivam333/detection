@@ -1,7 +1,8 @@
 from django.urls import path
+from django.conf.urls import url
 from . import human
-# from . import views
+from . import views
 
 urlpatterns = [
-    path('detect/', human.new_function),
+    path('detect/', views.DetectAPI.as_view()),
 ]

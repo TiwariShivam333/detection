@@ -7,22 +7,13 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import time
+
 from django.http import HttpResponse
 import requests
 
 
-def new_function(request, checker):
-        if request is not None:
-            if checker:
-                check_for_trespassers()
-                return HttpResponse("<h3>CODE RUNNING ...</h3>")
-            else:
-                return HttpResponse("<h3>CODE STOPPED</h3>")
-        sys.exit()
-
-
 class DetectorAPI:
-    def __init__(self, path_to_ckpt) :
+    def __init__(self, path_to_ckpt):
         self.path_to_ckpt = path_to_ckpt
 
         self.detection_graph = tf.Graph()
@@ -85,41 +76,42 @@ def select_frame_in_frame(captured_frame, x, y, w, h):
     return cropped_frame
 
 
-def hit_screenshot_api(screenshot, number):
-    url = 'http://192.168.10.36:8080/Aipl/save/restricted'
-    img_name = "trespasser_alert" + str(number)
-    multipart_form_data = {
-        'image': (img_name, open(screenshot, 'rb'))
-    }
-    response = requests.post(url, files=multipart_form_data)
-    print(response)
+# def hit_screenshot_api(screenshot, number):
+#     url = 'http://192.168.10.36:8080/Aipl/save/restricted'
+#     img_name = "trespasser_alert" + str(number)
+#     multipart_form_data = {
+#         'image': (img_name, screenshot)
+#     }
+#     response = requests.post(url, files=multipart_form_data)
+#     print(response)
 
 
 def check_for_trespassers():
+    start_time = 0
+    count = 0
+    model_path = 'human_detection/faster_rcnn_inception_v2_coco_2018_01_28/frozen_inference_graph.pb'
 
-        count = 0
-        model_path = 'human_detection/faster_rcnn_inception_v2_coco_2018_01_28/frozen_inference_graph.pb'
+    od_api = DetectorAPI(path_to_ckpt=model_path)
+    threshold = 0.7
+    cap = cv2.VideoCapture(0)
+    # rtsp://192.168.10.10:554/user=admin_password=tlJwpbo6_channel=1_stream=0.sdp?real_stream
+    while True:
+        r, img = cap.read()
+        # img = cv2.resize(img, (1280, 720))
+        # selected_frame = select_frame_in_frame(img, 0, 0, 400, 720)
+        boxes, scores, classes, num = od_api.process_frame(img)
 
-        od_api = DetectorAPI(path_to_ckpt=model_path)
-        threshold = 0.7
-        cap = cv2.VideoCapture(0)
+        # Visualization of the results of a detection.
 
-        while True:
-            r, img = cap.read()
-            img = cv2.resize(img, (1280, 720))
-            # selected_frame = select_frame_in_frame(img, 0, 0, 400, 720)
-            boxes, scores, classes, num = od_api.process_frame(img)
+        for i in range(len(boxes)):
 
-            # Visualization of the results of a detection.
-            # start_time = end_time = time.time()
-
-            for i in range(len(boxes)):
-
-                # Class 1 represents human
-                if classes[i] == 1 and scores[i] > threshold:
-
+            # Class 1 represents human
+            if classes[i] == 1 and scores[i] > threshold:
+                end_time = time.time()
+                if end_time - start_time > 10:
+                    start_time = time.time()
                     cv2.imwrite("frame{}.jpg".format(count), img)
-                    hit_screenshot_api(img, count)
+                    # hit_screenshot_api(img, count)
                     count += 1
                     time.sleep(10)
                     break
@@ -127,18 +119,12 @@ def check_for_trespassers():
                     # cv2.rectangle(img, (box[1], box[0]), (box[3], box[2]), (255, 0, 0), 4)
                     # break
 
-            cv2.imshow("preview", img)
-            key = cv2.waitKey(1)
-            if key & 0xFF == ord('q'):
-                od_api.close()
-                sys.exit()
+        cv2.imshow("preview", img)
+        key = cv2.waitKey(1)
+        if key & 0xFF == ord('q'):
+            cap.release()
+            cv2.destroyAllWindows()
+            break
 
 
-# def check_if_enabled(checker):
-#     if checker:
-#         check_for_trespassers()
-#     else:
-#         sys.exit()
 
-
-# if __name__ == "__main__":
